@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>王團排程表</title>
+<style>
+  :root{
+    --bg: #12141c;
+    --bg-elev: #1a1d28;
+    --bg-elev-2: #20242f;
+    --border: #2b2f3d;
+    --accent: #c9a35c;
+    --accent-soft: #e7cf9e;
+    --accent-dim: #6b5a35;
+    --text: #ece7da;
+    --text-dim: #9aa0ad;
+    --text-faint: #6b7280;
+    --danger: #d9756f;
+    --danger-bg: #3a2426;
+    --success: #6fae7f;
+    --warn: #d6a14a;
+    --radius: 10px;
+    --mono: "SF Mono", "Cascadia Code", ui-monospace, Consolas, monospace;
+    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{min-height:100vh;}
+  #app{max-width:1200px;margin:0 auto;padding:0 16px 60px;}
+
+  header.topbar{position:sticky;top:0;z-index:20;background:linear-gradient(180deg, var(--bg) 70%, transparent);padding:18px 0 10px;margin-bottom:6px;}
+  .brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;justify-content:space-between;}
+  .brand h1{font-size:21px;margin:0;letter-spacing:1px;font-weight:700;display:flex;align-items:center;gap:8px;}
+  .brand h1::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
+  .brand .sub{color:var(--text-dim);font-size:12.5px;margin-top:2px;}
+  .topbar-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .save-indicator{font-size:11.5px;color:var(--text-faint);font-family:var(--mono);white-space:nowrap;}
+
+  button{font-family:var(--sans);cursor:pointer;border:1px solid var(--border);background:var(--bg-elev);color:var(--text);border-radius:8px;padding:8px 14px;font-size:13.5px;transition:border-color .15s, background .15s;}
+  button:hover{border-color:var(--accent-dim);}
+  button.primary{background:var(--accent);color:#1a1408;border-color:var(--accent);font-weight:600;}
+  button.primary:hover{background:var(--accent-soft);}
+  button.ghost{background:transparent;}
+  button.danger{color:var(--danger);}
+  button.danger:hover{border-color:var(--danger);background:var(--danger-bg);}
+  button.sm{padding:5px 10px;font-size:12.5px;}
+  button.xs{padding:2px 7px;font-size:12px;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  input[type=file]{display:none;}
+
+  nav.tabs{display:flex;gap:4px;margin:14px 0 18px;border-bottom:1px solid var(--border);overflow-x:auto;}
+  nav.tabs button{background:transparent;border:none;border-radius:0;padding:10px 14px;color:var(--text-dim);font-size:14px;border-bottom:2px solid transparent;white-space:nowrap;}
+  nav.tabs button.active{color:var(--accent-soft);border-bottom-color:var(--accent);font-weight:600;}
+  nav.tabs button:hover{color:var(--text);}
+
+  .panel{background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;}
+  .panel-title{font-size:14px;color:var(--accent-soft);font-weight:600;margin:0 0 10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;}
+
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+  .toolbar input[type=text], .toolbar input[type=search]{background:var(--bg-elev-2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13.5px;flex:1;min-width:140px;}
+  .spacer{flex:1;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  thead th{text-align:left;color:var(--text-dim);font-weight:500;font-size:12px;padding:8px 10px;border-bottom:1px solid var(--border);}
+  tbody td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tbody tr:hover{background:var(--bg-elev-2);}
+  tbody tr:last-child td{border-bottom:none;}
+  .row-actions{display:flex;gap:6px;justify-content:flex-end;}
+
+  .empty{text-align:center;padding:36px 16px;color:var(--text-faint);font-size:13.5px;}
+
+  .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;white-space:nowrap;}
+  .badge.conflict{background:#3a2f1c;color:var(--warn);border:1px solid var(--accent-dim);}
+  .badge.guest{background:#22324a;color:#8fb6e0;border:1px solid #345277;}
+
+  .chip{display:inline-flex;align-items:center;background:var(--bg-elev-2);border:1px solid var(--border);border-radius:99px;padding:3px 10px;font-size:12px;margin:2px 3px 2px 0;color:var(--text-dim);}
+  .chip.conflict{border-color:var(--warn);color:var(--warn);}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(8,9,13,.72);display:flex;align-items:center;justify-content:center;padding:18px;z-index:100;}
+  .modal-box{background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);width:100%;max-width:480px;max-height:88vh;overflow-y:auto;padding:20px 22px;}
+  .modal-box.wide{max-width:680px;}
+  .modal-box h3{margin:0 0 16px;font-size:16px;color:var(--accent-soft);}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12.5px;color:var(--text-dim);margin-bottom:5px;}
+  .field input[type=text], .field input[type=date], .field input[type=time], .field select, .field textarea{
+    width:100%;background:var(--bg-elev-2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 11px;font-size:14px;font-family:var(--sans);
+  }
+  .field textarea{resize:vertical;min-height:54px;}
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;min-width:0;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap;}
+  .hint{font-size:11.5px;color:var(--text-faint);margin-top:4px;}
+
+  .dnd-columns{display:flex;gap:16px;flex-wrap:wrap;}
+  .dnd-col{flex:1;min-width:230px;}
+  .dnd-col h4{font-size:12.5px;color:var(--text-dim);margin:0 0 8px;font-weight:600;}
+  .pool-search{margin-bottom:8px;}
+  .pool-list{max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px;}
+  .pool-chip{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:7px;margin-bottom:4px;background:var(--bg-elev-2);cursor:grab;font-size:13.5px;border:1px solid transparent;}
+  .pool-chip:hover{border-color:var(--accent-dim);}
+  .pool-chip:active{cursor:grabbing;}
+  .pool-chip .name{flex:1;}
+  .pool-chip .tags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;}
+  .conflict-tag{font-size:10.5px;color:var(--warn);white-space:nowrap;}
+  .pool-empty{color:var(--text-faint);font-size:12px;text-align:center;padding:18px 8px;}
+
+  .lineup-zone{min-height:300px;max-height:300px;overflow-y:auto;border:2px dashed var(--border);border-radius:8px;padding:8px;transition:border-color .15s, background .15s;}
+  .lineup-zone.drag-over{border-color:var(--accent);background:rgba(201,163,92,.08);}
+  .lineup-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:7px;margin-bottom:4px;background:var(--bg-elev-2);border:1px solid var(--border);font-size:13.5px;}
+  .lineup-item .left{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;}
+  .lineup-item .remove-btn{background:none;border:none;color:var(--text-faint);font-size:16px;line-height:1;padding:0 4px;cursor:pointer;flex-shrink:0;}
+  .lineup-item .remove-btn:hover{color:var(--danger);}
+  .lineup-empty{color:var(--text-faint);font-size:12.5px;text-align:center;padding:30px 8px;}
+  .guest-add-row{display:flex;gap:6px;margin-top:8px;}
+  .guest-add-row input{flex:1;}
+  .count-indicator{font-family:var(--mono);font-size:12.5px;margin-top:8px;}
+  .count-indicator.ok{color:var(--success);}
+  .count-indicator.warn{color:var(--warn);}
+
+  /* calendar */
+  .cal-scroll{overflow-x:auto;padding-bottom:6px;margin:0 -16px;padding-left:16px;padding-right:16px;}
+  .calendar-grid{display:grid;grid-template-columns:repeat(7, minmax(160px,1fr));gap:10px;min-width:1100px;}
+  .cal-col{display:flex;flex-direction:column;background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:10px;min-height:140px;}
+  .cal-col-head{font-size:13px;font-weight:600;color:var(--accent-soft);text-align:center;padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid var(--border);}
+  .cal-col-body{flex:1;display:flex;flex-direction:column;gap:8px;}
+  .cal-empty{color:var(--text-faint);font-size:11.5px;text-align:center;padding:16px 4px;}
+  .cal-add-btn{margin-top:8px;width:100%;}
+
+  .cal-raid-card{border:1px solid var(--border);border-radius:8px;padding:8px 9px;background:var(--bg-elev-2);font-size:12.5px;transition:border-color .15s, background .15s;}
+  .cal-raid-card.has-conflict{border-color:var(--accent-dim);}
+  .cal-raid-card.drag-over{border-color:var(--accent);background:rgba(201,163,92,.1);}
+  .cal-raid-head{display:flex;justify-content:space-between;align-items:flex-start;gap:4px;}
+  .cal-raid-title{font-weight:600;font-size:13px;}
+  .cal-raid-meta{color:var(--text-dim);font-size:11px;margin-top:1px;}
+  .cal-conflict-note{color:var(--warn);font-size:11px;margin-top:5px;}
+  .cal-lineup{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px;min-height:24px;}
+  .cal-lineup-empty{color:var(--text-faint);font-size:11px;padding:5px 0;}
+  .cal-chip{display:inline-flex;align-items:center;gap:3px;background:var(--bg-elev);border:1px solid var(--border);border-radius:99px;padding:2px 4px 2px 9px;font-size:11.5px;cursor:grab;color:var(--text);}
+  .cal-chip.conflict{border-color:var(--warn);color:var(--warn);}
+  .cal-chip:active{cursor:grabbing;}
+  .cal-chip .remove-btn{background:none;border:none;color:var(--text-faint);font-size:13px;line-height:1;padding:0 4px;cursor:pointer;}
+  .cal-chip .remove-btn:hover{color:var(--danger);}
+  .cal-pool-wrap{margin-bottom:14px;}
+  .cal-pool-list{max-height:130px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;}
+  .cal-pool-chip{display:flex;align-items:center;gap:6px;background:var(--bg-elev-2);border:1px solid var(--border);border-radius:99px;padding:5px 10px;font-size:12.5px;cursor:grab;}
+  .cal-pool-chip:hover{border-color:var(--accent-dim);}
+  .cal-pool-chip:active{cursor:grabbing;}
+  .cal-pool-chip .n{font-size:10.5px;color:var(--text-faint);}
+
+  @media (max-width:640px){
+    table thead{display:none;}
+    table, tbody, tr, td{display:block;width:100%;}
+    tbody tr{border-bottom:1px solid var(--border);padding:8px 0;}
+    tbody td{border-bottom:none;padding:3px 2px;display:flex;justify-content:space-between;gap:10px;}
+    tbody td::before{content:attr(data-label);color:var(--text-dim);font-size:11.5px;}
+    .row-actions{justify-content:flex-start;margin-top:6px;}
+    .field-row{flex-direction:column;}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ---------- state ----------
+let state = { members: [], raids: [] };
+// member: { id, gameId, name }
+// raid:   { id, dateMode:'date'|'weekday', date:'YYYY-MM-DD' (當 dateMode='date'), weekday:null|0-6 (當 dateMode='weekday'),
+//           startTime:'HH:mm', endTime:'HH:mm', title, note, slots:[{type:'member',refId} | {type:'guest',id,name}] }
+
+let ui = {
+  tab: 'raids',
+  memberSearch: '',
+  calPoolSearch: '',
+  modal: null,            // 'member' | 'raid' | 'confirm'
+  editingMemberId: null,
+  editingRaidId: null,
+  raidForm: null,
+  poolSearch: '',
+  confirm: null,
+};
+
+const STORAGE_KEY = 'guild-raid-schedule-v3';
+const WEEKDAYS = ['日','一','二','三','四','五','六']; // index 0-6, matches Date#getDay()
+const CAL_ORDER = [1,2,3,4,5,6,0]; // 週一 ~ 週日
+
+// ---------- storage ----------
+// 主要使用瀏覽器原生 localStorage（同裝置、同瀏覽器下次開啟這個檔案都讀得到）；
+// 若剛好跑在有提供 window.storage 的環境（例如某些沙盒／artifact 執行環境），也會一併寫入，兩者互不影響。
+async function loadData(){
+  try{
+    let raw = null;
+    if(window.storage && typeof window.storage.get === 'function'){
+      try{ const r = await window.storage.get(STORAGE_KEY); if(r && r.value) raw = r.value; }catch(e){}
+    }
+    if(!raw) raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      state.members = Array.isArray(parsed.members) ? parsed.members : [];
+      state.raids = Array.isArray(parsed.raids) ? parsed.raids : [];
+      lastSaved = new Date();
+    }
+  }catch(e){ /* 尚無資料 */ }
+  render();
+}
+let saveTimer = null, lastSaved = null;
+async function persistNow(){
+  const json = JSON.stringify(state);
+  let ok = false;
+  try{ localStorage.setItem(STORAGE_KEY, json); ok = true; }
+  catch(e){ console.error('localStorage 儲存失敗', e); }
+  if(window.storage && typeof window.storage.set === 'function'){
+    try{ await window.storage.set(STORAGE_KEY, json, false); ok = true; }
+    catch(e){ console.error('window.storage 儲存失敗', e); }
+  }
+  if(ok) lastSaved = new Date();
+  renderSaveIndicator();
+}
+function saveData(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(persistNow, 250);
+}
+// 每 30 秒定時自動儲存一次，當作保險（避免因為某些操作沒觸發 saveData 而漏存）
+setInterval(persistNow, 30000);
+
+// ---------- utils ----------
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtDate(dateStr){
+  if(!dateStr) return '—';
+  const d = new Date(dateStr+'T00:00:00');
+  if(isNaN(d.getTime())) return dateStr;
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}（週${WEEKDAYS[d.getDay()]}）`;
+}
+function fmtTimeRange(s,e){ if(!s) return '—'; return e ? `${s}–${e}` : s; }
+function toMinutes(t){ if(!t) return null; const [h,m]=t.split(':').map(Number); return h*60+m; }
+function addMinutes(t, mins){ const total=(toMinutes(t)+mins+1440)%1440; const h=Math.floor(total/60), m=total%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; }
+function todayStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function todayStamp(){ return todayStr().replace(/-/g,''); }
+function weekdayOf(dateStr){ if(!dateStr) return null; const d=new Date(dateStr+'T00:00:00'); return isNaN(d.getTime())?null:d.getDay(); }
+function weekdayLabel(i){ return (i==null || i==='') ? '未固定' : '週'+WEEKDAYS[Number(i)]; }
+function raidWeekday(r){ return r.dateMode==='weekday' ? (r.weekday==null||r.weekday===''?null:Number(r.weekday)) : weekdayOf(r.date); }
+function fmtRaidDate(r){ return r.dateMode==='weekday' ? `每週${WEEKDAYS[Number(r.weekday)]}` : fmtDate(r.date); }
+function memberById(id){ return state.members.find(x=>x.id===id); }
+function memberLabel(id){ const m=memberById(id); if(!m) return '（已刪除的成員）'; return m.gameId + (m.name ? `（${m.name}）` : ''); }
+function slotKey(s){ return s.type==='member' ? 'm:'+s.refId : 'g:'+s.id; }
+function slotName(s){ return s.type==='member' ? memberLabel(s.refId) : s.name; }
+function raidsForMember(memberId){
+  return state.raids.filter(r=> r.slots.some(s=>s.type==='member' && s.refId===memberId))
+    .slice()
+    .sort((a,b)=>{
+      const wa=raidWeekday(a), wb=raidWeekday(b);
+      if(wa!==wb) return (wa==null?99:wa) - (wb==null?99:wb);
+      return (toMinutes(a.startTime)||0) - (toMinutes(b.startTime)||0);
+    });
+}
+
+// ---------- conflict logic ----------
+// 兩個王團紀錄時間重疊：同一天（指定日期）或同一個星期（每週固定）且時段重疊
+function rangesOverlap(aS,aE,bS,bE){ return aS < bE && bS < aE; }
+function raidRange(r){ const s=toMinutes(r.startTime); const e=r.endTime?toMinutes(r.endTime):s+60; return [s,e]; }
+function sameDayBasis(a,b){
+  if(a.dateMode!=='weekday' && b.dateMode!=='weekday') return !!(a.date && b.date && a.date===b.date);
+  const wa = raidWeekday(a), wb = raidWeekday(b);
+  return wa!=null && wb!=null && wa===wb;
+}
+function raidsOverlap(a,b){
+  if(a.id===b.id) return false;
+  if(!sameDayBasis(a,b)) return false;
+  if(!a.startTime || !b.startTime) return false;
+  const [aS,aE]=raidRange(a), [bS,bE]=raidRange(b);
+  return rangesOverlap(aS,aE,bS,bE);
+}
+function memberIdsInRaid(r){ return r.slots.filter(s=>s.type==='member').map(s=>s.refId); }
+// 撞團判斷的「身分」依據：同一個名字視為同一個人（可能用不同遊戲ID的角色出場），
+// 沒填名字的成員則各自獨立（沒有可比對的依據，維持只跟自己的角色比對）。
+function memberIdentityKey(memberId){
+  const m = memberById(memberId);
+  const name = m && m.name ? m.name.trim() : '';
+  return name ? 'name:'+name.toLowerCase() : 'id:'+memberId;
+}
+function computeConflictPairs(){
+  const pairs = [];
+  for(let i=0;i<state.raids.length;i++){
+    for(let j=i+1;j<state.raids.length;j++){
+      const a=state.raids[i], b=state.raids[j];
+      if(!raidsOverlap(a,b)) continue;
+      const aIds=memberIdsInRaid(a), bIds=memberIdsInRaid(b);
+      const aKeys = new Set(aIds.map(memberIdentityKey));
+      const bKeys = new Set(bIds.map(memberIdentityKey));
+      const overlapIdsA = aIds.filter(id=> bKeys.has(memberIdentityKey(id)));
+      const overlapIdsB = bIds.filter(id=> aKeys.has(memberIdentityKey(id)));
+      if(overlapIdsA.length || overlapIdsB.length){
+        pairs.push({ a, b, overlapIdsA, overlapIdsB });
+      }
+    }
+  }
+  return pairs;
+}
+function conflictsForRaid(raidId){ return computeConflictPairs().filter(p=>p.a.id===raidId || p.b.id===raidId); }
+// 某成員（角色）自己排入的王團之間，哪幾場彼此時段重疊：Map<raidId, 與其重疊的其他王團[]>
+// 同名的其他角色被排進另一場重疊的王團，也算數（視為同一個人）。
+function memberConflictInfo(memberId){
+  const map = new Map();
+  computeConflictPairs().forEach(p=>{
+    if(p.overlapIdsA.includes(memberId)){
+      if(!map.has(p.a.id)) map.set(p.a.id, []);
+      map.get(p.a.id).push(p.b);
+    }
+    if(p.overlapIdsB.includes(memberId)){
+      if(!map.has(p.b.id)) map.set(p.b.id, []);
+      map.get(p.b.id).push(p.a);
+    }
+  });
+  return map;
+}
+// 草稿期間（編輯視窗內）：某成員若加入這個正在編輯的王團，是否會跟「其他既有王團」時間重疊
+// （同名的其他角色若已排在重疊時段的王團裡，也視為撞團）
+function memberConflictWith(memberId, draft, excludeRaidId){
+  if(!draft.startTime) return null;
+  const fake = { id:'__draft__', dateMode:draft.dateMode, date:draft.date, weekday:draft.weekday, startTime:draft.startTime, endTime:draft.endTime };
+  if(raidWeekday(fake)==null) return null;
+  const key = memberIdentityKey(memberId);
+  for(const r of state.raids){
+    if(r.id===excludeRaidId) continue;
+    if(!raidsOverlap(fake, r)) continue;
+    if(memberIdsInRaid(r).some(id=> memberIdentityKey(id)===key)) return r;
+  }
+  return null;
+}
+
+// ---------- render root ----------
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderHeader()}
+    ${renderTabs()}
+    <div id="tab-content">${renderTabContent()}</div>
+    ${ui.modal ? renderModal() : ''}
+  `;
+  bindGlobalEvents();
+}
+function renderSaveIndicator(){
+  const el = document.getElementById('save-indicator');
+  if(!el) return;
+  el.textContent = lastSaved ? `已儲存 · ${String(lastSaved.getHours()).padStart(2,'0')}:${String(lastSaved.getMinutes()).padStart(2,'0')}:${String(lastSaved.getSeconds()).padStart(2,'0')}` : '尚未儲存';
+}
+function renderHeader(){
+  return `
+  <header class="topbar">
+    <div class="brand">
+      <div>
+        <h1>王團排程表</h1>
+        <div class="sub">公會成員名單與王團出場名單，方便檢查時間衝突、調度人力</div>
+      </div>
+      <div class="topbar-actions">
+        <span class="save-indicator" id="save-indicator">${lastSaved ? '已儲存' : '尚未儲存'}</span>
+        <button class="ghost sm" data-action="save-now">💾 手動儲存</button>
+        <button class="ghost sm" data-action="add-sample-data">新增預設資料</button>
+        <button class="ghost sm" data-action="clear-sample-data">清除預設資料</button>
+        <button class="ghost sm" data-action="export">匯出 JSON</button>
+        <button class="ghost sm" data-action="import-click">匯入 JSON</button>
+        <input type="file" id="import-file" accept="application/json">
+      </div>
+    </div>
+  </header>`;
+}
+function renderTabs(){
+  const tabs = [['members', `會員名單 (${state.members.length})`],['raids', `王團紀錄 (${state.raids.length})`]];
+  return `<nav class="tabs">${tabs.map(([k,l])=>`<button data-tab="${k}" class="${ui.tab===k?'active':''}">${l}</button>`).join('')}</nav>`;
+}
+function renderTabContent(){
+  if(ui.tab==='members') return renderMembers();
+  if(ui.tab==='raids') return renderRaids();
+  return '';
+}
+
+// ---------- members tab ----------
+function memberRaidInfo(memberId){
+  const list = raidsForMember(memberId);
+  const conflictMap = memberConflictInfo(memberId);
+  return { list, conflictMap, hasConflict: conflictMap.size>0 };
+}
+function memberRaidSummaryHtml(memberId, info){
+  const { list, conflictMap } = info || memberRaidInfo(memberId);
+  if(list.length===0) return `<span style="color:var(--text-faint);">未排入任何王團</span>`;
+  return list.map(r=>{
+    const others = conflictMap.get(r.id);
+    const conflictTitle = others ? `⚠ 與「${others.map(o=>o.title||'王團').join('、')}」時段重疊` : '';
+    return `<span class="chip${others?' conflict':''}"${others?` title="${esc(conflictTitle)}"`:''}>${others?'⚠ ':''}${weekdayLabel(raidWeekday(r))} ${esc(r.startTime||'')}${r.title?'·'+esc(r.title):''}</span>`;
+  }).join('');
+}
+function renderMembers(){
+  const q = ui.memberSearch.trim().toLowerCase();
+  const list = state.members.filter(m=> !q || m.gameId.toLowerCase().includes(q) || (m.name||'').toLowerCase().includes(q));
+  return `
+  <div class="toolbar">
+    <input type="search" placeholder="搜尋遊戲ID或名字…" id="member-search" value="${esc(ui.memberSearch)}">
+    <div class="spacer"></div>
+    <button class="primary" data-action="open-member-modal">＋ 新增成員</button>
+  </div>
+  <div class="panel">
+    ${list.length===0 ? `<div class="empty">${state.members.length===0?'還沒有任何成員，點上方「新增成員」開始建立名單。':'找不到符合的成員。'}</div>` : `
+      <table>
+        <thead><tr><th>遊戲ID</th><th>名字</th><th>王團時間</th><th style="text-align:right;">操作</th></tr></thead>
+        <tbody>
+          ${list.map(m=>{
+            const info = memberRaidInfo(m.id);
+            return `
+            <tr>
+              <td data-label="遊戲ID">${esc(m.gameId)}${info.hasConflict?' <span class="badge conflict" title="此成員有王團時段互相重疊">⚠ 衝突</span>':''}</td>
+              <td data-label="名字" style="color:var(--text-dim);">${esc(m.name||'—')}</td>
+              <td data-label="王團時間">${memberRaidSummaryHtml(m.id, info)}</td>
+              <td data-label="操作">
+                <div class="row-actions">
+                  <button class="sm" data-action="edit-member" data-id="${m.id}">編輯</button>
+                  <button class="sm danger" data-action="delete-member" data-id="${m.id}">刪除</button>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`}
+  </div>`;
+}
+
+// ---------- raids tab：週一～週日 行事曆排版 ----------
+function renderCalMemberPool(){
+  const q = ui.calPoolSearch.trim().toLowerCase();
+  const list = state.members.filter(m=> !q || m.gameId.toLowerCase().includes(q) || (m.name||'').toLowerCase().includes(q));
+  if(list.length===0){
+    return `<div class="pool-empty">${state.members.length===0 ? '尚無公會成員，請先到「會員名單」新增。' : '找不到符合的成員。'}</div>`;
+  }
+  return list.map(m=>{
+    const n = raidsForMember(m.id).length;
+    return `<div class="cal-pool-chip" draggable="true" data-action="cal-pool-chip" data-id="${m.id}">
+      <span>${esc(memberLabel(m.id))}</span><span class="n">${n}團</span>
+    </div>`;
+  }).join('');
+}
+function renderCalRaidCard(r){
+  const conflicts = conflictsForRaid(r.id);
+  const conflictMap = {};
+  conflicts.forEach(p=>{
+    const isA = p.a.id===r.id;
+    const other = isA ? p.b : p.a;
+    const ids = isA ? p.overlapIdsA : p.overlapIdsB;
+    ids.forEach(id=>{ conflictMap[id]=other; });
+  });
+  const hasConflict = conflicts.length>0;
+  const dateNote = r.dateMode!=='weekday' ? fmtDate(r.date) : '';
+  const lineupHtml = r.slots.length===0
+    ? `<div class="cal-lineup-empty">拖拉成員到這裡</div>`
+    : r.slots.map(s=>{
+        const conflictOther = s.type==='member' ? conflictMap[s.refId] : null;
+        return `<span class="cal-chip ${conflictOther?'conflict':''}" draggable="true" data-action="cal-chip" data-raid-id="${r.id}" data-slot-key="${slotKey(s)}" title="${conflictOther?('⚠ 與「'+esc(conflictOther.title||'王團')+'」時段重疊'):''}">
+          ${esc(slotName(s))}${s.type==='guest'?' <span class="badge guest" style="padding:0 5px;">訪客</span>':''}
+          <button class="remove-btn" data-action="cal-remove-slot" data-raid-id="${r.id}" data-slot-key="${slotKey(s)}" title="移除">×</button>
+        </span>`;
+      }).join('');
+  return `
+  <div class="cal-raid-card ${hasConflict?'has-conflict':''}" data-action="cal-dropzone" data-raid-id="${r.id}">
+    <div class="cal-raid-head">
+      <div>
+        <div class="cal-raid-title">${esc(r.title||'王團')}</div>
+        <div class="cal-raid-meta">${fmtTimeRange(r.startTime,r.endTime)}${dateNote?(' · '+dateNote):''} · ${r.slots.length}/10</div>
+      </div>
+      <div class="row-actions">
+        <button class="xs" data-action="edit-raid" data-id="${r.id}" title="編輯">✎</button>
+        <button class="xs danger" data-action="delete-raid" data-id="${r.id}" title="刪除">×</button>
+      </div>
+    </div>
+    ${hasConflict ? `<div class="cal-conflict-note">⚠ 與其他王團時段重疊</div>` : ''}
+    <div class="cal-lineup">${lineupHtml}</div>
+  </div>`;
+}
+function renderCalendarColumn(wd){
+  const raids = state.raids.filter(r=> raidWeekday(r)===wd)
+    .sort((a,b)=> (toMinutes(a.startTime)||0) - (toMinutes(b.startTime)||0));
+  return `
+  <div class="cal-col">
+    <div class="cal-col-head">週${WEEKDAYS[wd]}</div>
+    <div class="cal-col-body">
+      ${raids.length===0 ? `<div class="cal-empty">尚無安排</div>` : raids.map(r=>renderCalRaidCard(r)).join('')}
+    </div>
+    <button class="sm ghost cal-add-btn" data-action="quick-add-raid" data-weekday="${wd}">＋ 新增</button>
+  </div>`;
+}
+function renderRaids(){
+  return `
+  <div class="toolbar">
+    <div class="spacer"></div>
+    <button class="primary" data-action="open-raid-modal">＋ 新增王團紀錄</button>
+  </div>
+  <div class="panel cal-pool-wrap">
+    <div class="panel-title"><span>公會成員（拖拉到下方任一天的王團卡片中）</span></div>
+    <input type="search" class="pool-search" placeholder="搜尋遊戲ID或名字…" value="${esc(ui.calPoolSearch)}" data-action="cal-pool-search">
+    <div class="cal-pool-list" data-action="cal-pool-list">${renderCalMemberPool()}</div>
+  </div>
+  <div class="cal-scroll">
+    <div class="calendar-grid">${CAL_ORDER.map(wd=>renderCalendarColumn(wd)).join('')}</div>
+  </div>`;
+}
+
+// ---------- modal dispatch ----------
+function renderModal(){
+  if(ui.modal==='member') return renderMemberModal();
+  if(ui.modal==='raid') return renderRaidModal();
+  if(ui.modal==='confirm') return renderConfirmModal();
+  return '';
+}
+function renderMemberModal(){
+  const editing = ui.editingMemberId ? memberById(ui.editingMemberId) : null;
+  return `
+  <div class="modal-overlay" data-action="overlay-close">
+    <div class="modal-box" data-stop>
+      <h3>${editing?'編輯成員':'新增成員'}</h3>
+      <div class="field"><label>遊戲ID *</label><input type="text" id="m-gameid" value="${esc(editing?editing.gameId:'')}" placeholder="例如：法師小白"></div>
+      <div class="field"><label>名字（選填）</label><input type="text" id="m-name" value="${esc(editing?editing.name||'':'')}" placeholder="例如：阿白／真實姓名或暱稱"></div>
+      ${editing ? `<div class="field"><label>王團時間</label><div>${memberRaidSummaryHtml(editing.id)}</div><div class="hint">王團時間會依「王團紀錄」中此成員被排入的場次自動列出，請到王團紀錄調整。</div></div>` : `<div class="hint">新增成員後，可以到「王團紀錄」把這位成員排進對應的王團，王團時間會自動顯示在這裡。</div>`}
+      <div class="modal-actions">
+        <button class="ghost" data-action="close-modal">取消</button>
+        <button class="primary" data-action="save-member">${editing?'儲存變更':'新增成員'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderRaidModal(){
+  const f = ui.raidForm;
+  const q = ui.poolSearch.trim().toLowerCase();
+  const inLineupMemberIds = new Set(f.slots.filter(s=>s.type==='member').map(s=>s.refId));
+  let poolMembers = state.members.filter(m=> !inLineupMemberIds.has(m.id) && (!q || m.gameId.toLowerCase().includes(q) || (m.name||'').toLowerCase().includes(q)));
+  const count = f.slots.length;
+
+  const poolHtml = poolMembers.length===0
+    ? `<div class="pool-empty">${state.members.length===0 ? '尚無公會成員，請先到「會員名單」新增。' : '沒有可加入的成員了。'}</div>`
+    : poolMembers.map(m=>{
+        const overlapConflict = memberConflictWith(m.id, f, ui.editingRaidId);
+        return `<div class="pool-chip" draggable="true" data-action="pool-chip" data-id="${m.id}">
+          <span class="name">${esc(memberLabel(m.id))}</span>
+          <span class="tags">${overlapConflict ? `<span class="conflict-tag">⚠ 撞「${esc(overlapConflict.title||'王團')}」</span>` : ''}</span>
+        </div>`;
+      }).join('');
+
+  const lineupHtml = f.slots.length===0
+    ? `<div class="lineup-empty">尚未加入任何人員<br>從左側拖拉或點擊成員加入</div>`
+    : f.slots.map(s=>{
+        const overlapConflict = s.type==='member' ? memberConflictWith(s.refId, f, ui.editingRaidId) : null;
+        return `<div class="lineup-item" data-key="${slotKey(s)}">
+          <div class="left">
+            <span>${esc(slotName(s))}</span>
+            ${s.type==='guest' ? `<span class="badge guest">訪客</span>` : ''}
+            ${overlapConflict ? `<span class="badge conflict">撞「${esc(overlapConflict.title||'王團')}」</span>` : ''}
+          </div>
+          <button class="remove-btn" data-action="remove-slot" data-key="${slotKey(s)}" title="移除">×</button>
+        </div>`;
+      }).join('');
+
+  return `
+  <div class="modal-overlay" data-action="overlay-close">
+    <div class="modal-box wide" data-stop>
+      <h3>${ui.editingRaidId?'編輯王團紀錄':'新增王團紀錄'}</h3>
+
+      <div class="field">
+        <label>日期 *</label>
+        <div style="display:flex;gap:14px;margin-bottom:8px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--text);"><input type="radio" name="r-datemode" value="date" data-action="r-datemode" ${f.dateMode!=='weekday'?'checked':''}> 指定日期</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--text);"><input type="radio" name="r-datemode" value="weekday" data-action="r-datemode" ${f.dateMode==='weekday'?'checked':''}> 星期幾（每週固定）</label>
+        </div>
+        ${f.dateMode==='weekday'
+          ? `<select id="r-weekday" data-action="r-weekday">
+               <option value="" ${f.weekday==null||f.weekday===''?'selected':''}>請選擇星期</option>
+               ${WEEKDAYS.map((w,i)=>`<option value="${i}" ${String(f.weekday)===String(i)?'selected':''}>週${w}</option>`).join('')}
+             </select>`
+          : `<input type="date" id="r-date" value="${esc(f.date)}" data-action="r-date">`
+        }
+        ${f.dateMode!=='weekday' && f.date ? `<div class="hint">此日期為 ${fmtDate(f.date)}</div>` : ''}
+        ${f.dateMode==='weekday' ? `<div class="hint">這筆紀錄不綁定特定日期，每次出現相同星期都會視為衝突依據。</div>` : ''}
+      </div>
+
+      <div class="field-row">
+        <div class="field"><label>開始時間 *</label><input type="time" id="r-start" value="${esc(f.startTime)}" data-action="r-start"></div>
+        <div class="field"><label>結束時間</label><input type="time" id="r-end" value="${esc(f.endTime)}" data-action="r-end"></div>
+      </div>
+      <div class="field"><label>名稱／標題（選填）</label><input type="text" id="r-title" value="${esc(f.title)}" placeholder="王團"></div>
+
+      <div class="field">
+        <label>出場名單</label>
+        <div class="dnd-columns">
+          <div class="dnd-col">
+            <h4>公會成員（拖拉或點擊加入 →）</h4>
+            <input type="search" class="pool-search" placeholder="搜尋遊戲ID或名字…" value="${esc(ui.poolSearch)}" data-action="pool-search">
+            <div class="pool-list" data-action="pool-list">${poolHtml}</div>
+            <div class="guest-add-row">
+              <input type="text" id="guest-name-input" placeholder="非公會人員姓名（僅本團）">
+              <button class="sm" data-action="add-guest">＋ 加入</button>
+            </div>
+          </div>
+          <div class="dnd-col">
+            <h4>已排入名單</h4>
+            <div class="lineup-zone" data-action="lineup-zone">${lineupHtml}</div>
+            <div class="count-indicator ${count===10?'ok':'warn'}">目前人數：${count} / 10${count!==10?'（與建議人數不同）':''}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field"><label>備註（選填）</label><textarea id="r-note" placeholder="例如：借調其他公會玩家、調整原因等">${esc(f.note)}</textarea></div>
+
+      <div class="modal-actions">
+        <button class="ghost" data-action="close-modal">取消</button>
+        <button class="primary" data-action="save-raid">${ui.editingRaidId?'儲存變更':'新增紀錄'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderConfirmModal(){
+  const c = ui.confirm;
+  return `
+  <div class="modal-overlay" data-action="overlay-close">
+    <div class="modal-box" data-stop style="max-width:380px;">
+      <h3>${esc(c.title||'請確認')}</h3>
+      <p style="font-size:13.5px;color:var(--text-dim);line-height:1.6;">${c.message}</p>
+      <div class="modal-actions">
+        <button class="ghost" data-action="close-modal">取消</button>
+        <button class="danger" data-action="confirm-yes">${esc(c.confirmLabel||'確定')}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ---------- events ----------
+function bindGlobalEvents(){
+  const app = document.getElementById('app');
+
+  app.querySelectorAll('[data-tab]').forEach(el=> el.addEventListener('click', ()=>{ ui.tab=el.dataset.tab; ui.modal=null; render(); }));
+
+  app.querySelectorAll('[data-action]').forEach(el=>{
+    const a = el.dataset.action;
+    if(a==='export') el.addEventListener('click', exportJSON);
+    if(a==='import-click') el.addEventListener('click', ()=> document.getElementById('import-file').click());
+    if(a==='save-now') el.addEventListener('click', ()=>{ clearTimeout(saveTimer); persistNow(); });
+    if(a==='add-sample-data') el.addEventListener('click', addSampleData);
+    if(a==='clear-sample-data') el.addEventListener('click', confirmClearSampleData);
+
+    if(a==='open-member-modal') el.addEventListener('click', ()=> openMemberModal(null));
+    if(a==='edit-member') el.addEventListener('click', ()=> openMemberModal(el.dataset.id));
+    if(a==='delete-member') el.addEventListener('click', ()=> confirmDeleteMember(el.dataset.id));
+    if(a==='save-member') el.addEventListener('click', saveMemberFromModal);
+
+    if(a==='open-raid-modal') el.addEventListener('click', ()=> openRaidModal(null));
+    if(a==='quick-add-raid') el.addEventListener('click', ()=> openRaidModal(null, Number(el.dataset.weekday)));
+    if(a==='edit-raid') el.addEventListener('click', ()=> openRaidModal(el.dataset.id));
+    if(a==='delete-raid') el.addEventListener('click', ()=> confirmDeleteRaid(el.dataset.id));
+    if(a==='save-raid') el.addEventListener('click', saveRaidFromModal);
+
+    if(a==='r-datemode') el.addEventListener('change', e=>{ ui.raidForm.dateMode=e.target.value; renderModalOnly(); });
+    if(a==='r-weekday') el.addEventListener('change', e=>{ ui.raidForm.weekday = e.target.value===''? null : Number(e.target.value); renderModalOnly(); });
+    if(a==='r-date') el.addEventListener('change', e=>{ ui.raidForm.date=e.target.value; renderModalOnly(); });
+    if(a==='r-start') el.addEventListener('change', e=>{
+      ui.raidForm.startTime=e.target.value;
+      if(!ui.raidForm.endTime && e.target.value) ui.raidForm.endTime = addMinutes(e.target.value,60);
+      renderModalOnly();
+    });
+    if(a==='r-end') el.addEventListener('change', e=>{ ui.raidForm.endTime=e.target.value; renderModalOnly(); });
+
+    if(a==='pool-search') el.addEventListener('input', e=>{ ui.poolSearch=e.target.value; renderModalOnly('pool'); });
+    if(a==='add-guest') el.addEventListener('click', addGuestFromModal);
+    if(a==='remove-slot') el.addEventListener('click', ()=> removeSlot(el.dataset.key));
+
+    if(a==='cal-pool-search') el.addEventListener('input', e=>{ ui.calPoolSearch=e.target.value; renderTabOnly('cal-pool-search'); });
+    if(a==='cal-remove-slot') el.addEventListener('click', e=>{ e.stopPropagation(); removeSlotFromRaid(el.dataset.raidId, el.dataset.slotKey); });
+
+    if(a==='close-modal') el.addEventListener('click', closeModal);
+    if(a==='confirm-yes') el.addEventListener('click', ()=>{ const fn=ui.confirm.onConfirm; closeModal(); fn&&fn(); });
+    if(a==='overlay-close') el.addEventListener('click', closeModal);
+  });
+
+  app.querySelectorAll('[data-stop]').forEach(el=> el.addEventListener('click', e=> e.stopPropagation()));
+
+  // 編輯視窗內：成員池 → 出場名單
+  app.querySelectorAll('[data-action="pool-chip"]').forEach(el=>{
+    el.addEventListener('click', ()=> addMemberToLineup(el.dataset.id));
+    el.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/member-id', el.dataset.id); });
+  });
+  const zone = app.querySelector('[data-action="lineup-zone"]');
+  if(zone){
+    zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', ()=> zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e=>{
+      e.preventDefault(); zone.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/member-id');
+      if(id) addMemberToLineup(id);
+    });
+  }
+
+  // 行事曆：成員池 chip（拖拉來源）
+  app.querySelectorAll('[data-action="cal-pool-chip"]').forEach(el=>{
+    el.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/member-id', el.dataset.id); });
+  });
+  // 行事曆：王團卡片內的成員 chip（可拖到別的王團卡片移動）
+  app.querySelectorAll('[data-action="cal-chip"]').forEach(el=>{
+    el.addEventListener('dragstart', e=>{
+      e.dataTransfer.setData('application/x-slot-move', JSON.stringify({ fromRaidId: el.dataset.raidId, slotKey: el.dataset.slotKey }));
+    });
+  });
+  // 行事曆：王團卡片本身（拖放目標）
+  app.querySelectorAll('[data-action="cal-dropzone"]').forEach(el=>{
+    el.addEventListener('dragover', e=>{ e.preventDefault(); el.classList.add('drag-over'); });
+    el.addEventListener('dragleave', ()=> el.classList.remove('drag-over'));
+    el.addEventListener('drop', e=>{
+      e.preventDefault(); el.classList.remove('drag-over');
+      const raidId = el.dataset.raidId;
+      const moveData = e.dataTransfer.getData('application/x-slot-move');
+      const memberId = e.dataTransfer.getData('text/member-id');
+      if(moveData){
+        try{ const parsed = JSON.parse(moveData); moveSlotBetweenRaids(parsed.fromRaidId, raidId, parsed.slotKey); }catch(err){}
+      }else if(memberId){
+        addMemberToExistingRaid(raidId, memberId);
+      }
+    });
+  });
+
+  const ms = document.getElementById('member-search');
+  if(ms) ms.addEventListener('input', e=>{ ui.memberSearch=e.target.value; renderTabOnly('member-search'); });
+
+  const fileInput = document.getElementById('import-file');
+  if(fileInput) fileInput.addEventListener('change', handleImportFile);
+
+  const guestInput = document.getElementById('guest-name-input');
+  if(guestInput) guestInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); addGuestFromModal(); } });
+}
+
+function renderTabOnly(focus){
+  document.getElementById('tab-content').innerHTML = renderTabContent();
+  bindGlobalEvents();
+  if(focus==='member-search'){
+    const el = document.getElementById('member-search');
+    if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }
+  if(focus==='cal-pool-search'){
+    const el = document.querySelector('[data-action="cal-pool-search"]');
+    if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }
+}
+function renderModalOnly(focus){
+  const overlay = document.querySelector('.modal-overlay');
+  if(!overlay) return;
+  overlay.outerHTML = renderModal();
+  bindGlobalEvents();
+  if(focus==='pool'){
+    const el = document.querySelector('[data-action="pool-search"]');
+    if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }
+}
+
+// ---------- member actions ----------
+function openMemberModal(id){
+  ui.modal='member'; ui.editingMemberId=id; render();
+  setTimeout(()=>{ const el=document.getElementById('m-gameid'); el&&el.focus(); },0);
+}
+function saveMemberFromModal(){
+  const gameId = document.getElementById('m-gameid').value.trim();
+  const name = document.getElementById('m-name').value.trim();
+  if(!gameId){ alert('請輸入遊戲ID'); return; }
+  if(ui.editingMemberId){
+    const m = memberById(ui.editingMemberId);
+    m.gameId=gameId; m.name=name;
+  }else{
+    state.members.push({ id:uid(), gameId, name });
+  }
+  saveData(); closeModal();
+}
+function confirmDeleteMember(id){
+  ui.modal='confirm';
+  ui.confirm = {
+    title:'刪除成員',
+    message:`確定要刪除「${esc(memberLabel(id))}」嗎？此成員會同時從所有王團紀錄的出場名單中移除，此動作無法復原。`,
+    confirmLabel:'刪除',
+    onConfirm: ()=>{
+      state.members = state.members.filter(x=>x.id!==id);
+      state.raids.forEach(r=>{ r.slots = r.slots.filter(s=> !(s.type==='member' && s.refId===id)); });
+      saveData(); render();
+    }
+  };
+  render();
+}
+
+// ---------- raid actions ----------
+function openRaidModal(id, presetWeekday){
+  ui.modal='raid'; ui.editingRaidId=id; ui.poolSearch='';
+  if(id){
+    const r = state.raids.find(x=>x.id===id);
+    ui.raidForm = { dateMode:r.dateMode||'date', date:r.date||'', weekday:(r.weekday==null?null:r.weekday), startTime:r.startTime||'', endTime:r.endTime||'', title:r.title||'', note:r.note||'', slots: r.slots.map(s=>({...s})) };
+  }else if(presetWeekday!=null && !isNaN(presetWeekday)){
+    ui.raidForm = { dateMode:'weekday', date:'', weekday:presetWeekday, startTime:'', endTime:'', title:'', note:'', slots:[] };
+  }else{
+    ui.raidForm = { dateMode:'date', date: todayStr(), weekday:null, startTime:'', endTime:'', title:'', note:'', slots:[] };
+  }
+  render();
+}
+function addMemberToLineup(memberId){
+  if(!ui.raidForm.slots.some(s=>s.type==='member' && s.refId===memberId)){
+    ui.raidForm.slots.push({ type:'member', refId: memberId });
+  }
+  renderModalOnly();
+}
+function addGuestFromModal(){
+  const input = document.getElementById('guest-name-input');
+  const name = input.value.trim();
+  if(!name) return;
+  ui.raidForm.slots.push({ type:'guest', id:uid(), name });
+  input.value='';
+  renderModalOnly();
+}
+function removeSlot(key){
+  ui.raidForm.slots = ui.raidForm.slots.filter(s=> slotKey(s)!==key);
+  renderModalOnly();
+}
+function saveRaidFromModal(){
+  const dateMode = ui.raidForm.dateMode;
+  let date = '', weekday = null;
+  if(dateMode==='weekday'){
+    const wdVal = document.getElementById('r-weekday').value;
+    if(wdVal===''){ alert('請選擇星期'); return; }
+    weekday = Number(wdVal);
+  }else{
+    date = document.getElementById('r-date').value;
+    if(!date){ alert('請選擇日期'); return; }
+  }
+  const startTime = document.getElementById('r-start').value;
+  let endTime = document.getElementById('r-end').value;
+  const title = document.getElementById('r-title').value.trim();
+  const note = document.getElementById('r-note').value.trim();
+  if(!startTime){ alert('請輸入開始時間'); return; }
+  if(!endTime) endTime = addMinutes(startTime,60);
+  const payload = { dateMode, date, weekday, startTime, endTime, title, note, slots: ui.raidForm.slots };
+  if(ui.editingRaidId){ const r=state.raids.find(x=>x.id===ui.editingRaidId); Object.assign(r,payload); }
+  else state.raids.push({ id:uid(), ...payload });
+  saveData(); closeModal();
+}
+function confirmDeleteRaid(id){
+  const r = state.raids.find(x=>x.id===id);
+  ui.modal='confirm';
+  ui.confirm = {
+    title:'刪除王團紀錄',
+    message:`確定要刪除「${esc(r.title||'王團')}」（${fmtRaidDate(r)} ${fmtTimeRange(r.startTime,r.endTime)}）的紀錄嗎？此動作無法復原。`,
+    confirmLabel:'刪除',
+    onConfirm: ()=>{ state.raids = state.raids.filter(x=>x.id!==id); saveData(); render(); }
+  };
+  render();
+}
+
+// ---------- 行事曆拖拉操作（直接作用於已儲存的王團紀錄） ----------
+function addMemberToExistingRaid(raidId, memberId){
+  const r = state.raids.find(x=>x.id===raidId);
+  if(!r) return;
+  if(!r.slots.some(s=>s.type==='member' && s.refId===memberId)){
+    r.slots.push({ type:'member', refId: memberId });
+    saveData(); renderTabOnly();
+  }
+}
+function removeSlotFromRaid(raidId, key){
+  const r = state.raids.find(x=>x.id===raidId);
+  if(!r) return;
+  r.slots = r.slots.filter(s=> slotKey(s)!==key);
+  saveData(); renderTabOnly();
+}
+function moveSlotBetweenRaids(fromRaidId, toRaidId, key){
+  if(!fromRaidId || !toRaidId || fromRaidId===toRaidId) return;
+  const fromR = state.raids.find(x=>x.id===fromRaidId);
+  const toR = state.raids.find(x=>x.id===toRaidId);
+  if(!fromR || !toR) return;
+  const slot = fromR.slots.find(s=> slotKey(s)===key);
+  if(!slot) return;
+  fromR.slots = fromR.slots.filter(s=> slotKey(s)!==key);
+  const dup = slot.type==='member' && toR.slots.some(s=>s.type==='member' && s.refId===slot.refId);
+  if(!dup) toR.slots.push({ ...slot });
+  saveData(); renderTabOnly();
+}
+
+function closeModal(){
+  ui.modal=null; ui.editingMemberId=null; ui.editingRaidId=null; ui.raidForm=null; ui.confirm=null; ui.poolSearch='';
+  render();
+}
+
+// ---------- 預設（範例）資料：方便快速體驗時間衝突偵測 ----------
+function addSampleData(){
+  if(state.members.some(m=>m.isSample)){
+    alert('範例資料已經存在，如需重新產生，請先按「清除預設資料」。');
+    return;
+  }
+  const sampleMembers = [
+    { id:uid(), gameId:'劍聖阿明', name:'阿明', isSample:true },
+    { id:uid(), gameId:'法師小白', name:'小白', isSample:true },
+    { id:uid(), gameId:'弓手阿飛', name:'阿飛', isSample:true },
+    { id:uid(), gameId:'牧師小雨', name:'小雨', isSample:true },
+    { id:uid(), gameId:'盜賊阿凱', name:'阿凱', isSample:true },
+  ];
+  state.members.push(...sampleMembers);
+  const [m1,m2,m3,m4] = sampleMembers;
+  state.raids.push(
+    { id:uid(), dateMode:'weekday', date:'', weekday:6, startTime:'20:00', endTime:'21:00', title:'海龍王', note:'', isSample:true,
+      slots:[ {type:'member', refId:m1.id}, {type:'member', refId:m2.id}, {type:'member', refId:m3.id} ] },
+    { id:uid(), dateMode:'weekday', date:'', weekday:6, startTime:'20:30', endTime:'21:30', title:'冰龍王', note:'', isSample:true,
+      slots:[ {type:'member', refId:m2.id}, {type:'member', refId:m4.id} ] }
+  );
+  saveData(); render();
+}
+function confirmClearSampleData(){
+  if(!state.members.some(m=>m.isSample) && !state.raids.some(r=>r.isSample)){
+    alert('目前沒有範例資料。');
+    return;
+  }
+  ui.modal='confirm';
+  ui.confirm = {
+    title:'清除預設資料',
+    message:'確定要移除「新增預設資料」建立的範例成員與王團紀錄嗎？不會影響你自己新增的其他資料。',
+    confirmLabel:'清除',
+    onConfirm: ()=>{
+      const sampleMemberIds = new Set(state.members.filter(m=>m.isSample).map(m=>m.id));
+      state.members = state.members.filter(m=>!m.isSample);
+      state.raids = state.raids.filter(r=>!r.isSample);
+      state.raids.forEach(r=>{ r.slots = r.slots.filter(s=> !(s.type==='member' && sampleMemberIds.has(s.refId))); });
+      saveData(); render();
+    }
+  };
+  render();
+}
+
+// ---------- export / import ----------
+function exportJSON(){
+  const data = JSON.stringify(state, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=`guild-raid-schedule-${todayStamp()}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function handleImportFile(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    let parsed;
+    try{ parsed = JSON.parse(reader.result); }
+    catch(err){ alert('檔案格式錯誤，無法解析 JSON。'); e.target.value=''; return; }
+    if(!parsed || !Array.isArray(parsed.members) || !Array.isArray(parsed.raids)){
+      alert('檔案內容不符合預期格式（需包含 members 與 raids 陣列）。'); e.target.value=''; return;
+    }
+    ui.modal='confirm';
+    ui.confirm = {
+      title:'匯入資料',
+      message:`即將匯入 ${parsed.members.length} 位成員、${parsed.raids.length} 筆王團紀錄，並「取代」目前所有資料。建議先匯出目前資料備份。確定要繼續嗎？`,
+      confirmLabel:'取代匯入',
+      onConfirm: ()=>{ state = { members: parsed.members, raids: parsed.raids }; saveData(); render(); }
+    };
+    render();
+    e.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+// ---------- init ----------
+loadData();
+</script>
+</body>
+</html>
