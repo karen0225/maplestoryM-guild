@@ -142,12 +142,12 @@
   .cal-add-btn{margin-top:8px;width:100%;}
 
   /* calendar：非展開日縮小時的精簡清單 */
-  .cal-mini-item{display:flex;flex-direction:column;gap:1px;padding:6px 3px;border-bottom:1px dashed var(--border);cursor:pointer;}
+  .cal-mini-item{display:flex;flex-direction:column;gap:2px;padding:7px 5px;border-bottom:1px dashed var(--border);border-radius:6px;cursor:pointer;}
   .cal-mini-item:last-child{border-bottom:none;}
   .cal-mini-item:hover{background:var(--bg-elev-2);}
-  .cal-mini-time{font-family:var(--mono);color:var(--accent-soft);font-size:10.5px;}
-  .cal-mini-title{color:var(--text-dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .cal-empty-mini{color:var(--text-faint);font-size:10.5px;text-align:center;padding:10px 2px;}
+  .cal-mini-time{font-family:var(--mono);color:var(--accent-soft);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cal-mini-title{color:var(--text-dim);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cal-empty-mini{color:var(--text-faint);font-size:11px;text-align:center;padding:14px 2px;}
 
   /* calendar：單日展開後的橫向時間軸（時間水平排列，同一時間多團會往下並排） */
   .cal-expanded-panel .panel-title{margin-bottom:12px;}
@@ -167,6 +167,13 @@
   .cal-other-days-track{display:flex;gap:10px;}
 
   .cal-raid-card{border:1px solid var(--border);border-radius:8px;padding:8px 9px;background:var(--bg-elev-2);font-size:12.5px;transition:border-color .15s, background .15s;}
+  /* 時間軸展開檢視中，依排序輪流套用的低彩度色調，方便區分相鄰的王團（避免使用過亮的顏色） */
+  .cal-raid-card.tone-0{background:#232c3d;border-color:#33465e;}
+  .cal-raid-card.tone-1{background:#243425;border-color:#354d38;}
+  .cal-raid-card.tone-2{background:#332738;border-color:#4a3a52;}
+  .cal-raid-card.tone-3{background:#213333;border-color:#2f4c4c;}
+  .cal-raid-card.tone-4{background:#332a21;border-color:#4d3e2c;}
+  .cal-raid-card.tone-5{background:#2a2735;border-color:#3c374e;}
   .cal-raid-card.has-conflict{border-color:var(--accent-dim);}
   .cal-raid-card.drag-over{border-color:var(--accent);background:rgba(201,163,92,.1);}
   .cal-raid-head{display:flex;justify-content:space-between;align-items:flex-start;gap:4px;}
@@ -224,6 +231,9 @@ let ui = {
 // ---------- version history ----------
 // 每次有實質更新時，在陣列最前面新增一筆（最新的排最前面）
 const VERSION_HISTORY = [
+  { version: '1.3.0', date: '2026-07-25', notes: [
+    '簡潔UI顯示，展開後每個王團以不同顏色區分',
+  ] },
   { version: '1.2.0', date: '2026-07-25', notes: [
     '新增「展開」按鈕：展開某一天後，以時間軸的方式顯示'
   ] },
@@ -283,6 +293,12 @@ function fmtDate(dateStr){
   const d = new Date(dateStr+'T00:00:00');
   if(isNaN(d.getTime())) return dateStr;
   return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}（週${WEEKDAYS[d.getDay()]}）`;
+}
+function fmtDateShort(dateStr){
+  if(!dateStr) return '';
+  const d = new Date(dateStr+'T00:00:00');
+  if(isNaN(d.getTime())) return '';
+  return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
 }
 function fmtTimeRange(s,e){ if(!s) return '—'; return e ? `${s}–${e}` : s; }
 function toMinutes(t){ if(!t) return null; const [h,m]=t.split(':').map(Number); return h*60+m; }
@@ -506,7 +522,8 @@ function renderCalMemberPool(){
     </div>`;
   }).join('');
 }
-function renderCalRaidCard(r){
+const HZ_TONE_COUNT = 6;
+function renderCalRaidCard(r, toneIdx){
   const conflicts = conflictsForRaid(r.id);
   const conflictMap = {};
   conflicts.forEach(p=>{
@@ -517,6 +534,7 @@ function renderCalRaidCard(r){
   });
   const hasConflict = conflicts.length>0;
   const dateNote = r.dateMode!=='weekday' ? fmtDate(r.date) : '';
+  const toneClass = toneIdx==null ? '' : ` tone-${toneIdx % HZ_TONE_COUNT}`;
   const lineupHtml = r.slots.length===0
     ? `<div class="cal-lineup-empty">拖拉成員到這裡</div>`
     : r.slots.map(s=>{
@@ -527,7 +545,7 @@ function renderCalRaidCard(r){
         </span>`;
       }).join('');
   return `
-  <div class="cal-raid-card ${hasConflict?'has-conflict':''}" data-action="cal-dropzone" data-raid-id="${r.id}">
+  <div class="cal-raid-card${toneClass} ${hasConflict?'has-conflict':''}" data-action="cal-dropzone" data-raid-id="${r.id}">
     <div class="cal-raid-head">
       <div>
         <div class="cal-raid-title">${esc(r.title||'王團')}</div>
@@ -546,16 +564,20 @@ function raidsOfWeekdaySorted(wd){
   return state.raids.filter(r=> raidWeekday(r)===wd)
     .sort((a,b)=> (toMinutes(a.startTime)||0) - (toMinutes(b.startTime)||0));
 }
-// 其他天縮小時的精簡清單：只留時間＋標題，點擊可直接開編輯視窗
+// 精簡清單：只顯示王團時間（與日期，若為指定日期的紀錄）＋標題，點擊可直接開編輯視窗。
+// 未展開任何一天時的一般欄位、以及展開後其他天縮小的欄位，皆共用這份簡潔呈現方式。
 function renderCalColumnCollapsed(raids){
   if(raids.length===0) return `<div class="cal-empty-mini">—</div>`;
-  return raids.map(r=>`
+  return raids.map(r=>{
+    const dateShort = r.dateMode!=='weekday' ? fmtDateShort(r.date) : '';
+    return `
     <div class="cal-mini-item" data-action="edit-raid" data-id="${r.id}" title="${esc(r.title||'王團')} ${esc(fmtTimeRange(r.startTime,r.endTime))}">
-      <span class="cal-mini-time">${esc(r.startTime||'')}</span>
+      <span class="cal-mini-time">${esc(fmtTimeRange(r.startTime,r.endTime))}${dateShort?' · '+esc(dateShort):''}</span>
       <span class="cal-mini-title">${esc(r.title||'王團')}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
-// 一般（未展開）狀態下的單日欄位
+// 一般（未展開任何一天）狀態下的單日欄位：與「展開後其他天縮小」的呈現方式保持一致，維持簡潔
 function renderCalColumnFull(wd){
   const raids = raidsOfWeekdaySorted(wd);
   return `
@@ -564,7 +586,7 @@ function renderCalColumnFull(wd){
       <span class="cal-col-head-label">週${WEEKDAYS[wd]}</span>
       <button class="cal-expand-btn" data-action="toggle-expand-day" data-weekday="${wd}" title="展開">⤢</button>
     </div>
-    <div class="cal-col-body">${raids.length===0 ? `<div class="cal-empty">尚無安排</div>` : raids.map(r=>renderCalRaidCard(r)).join('')}</div>
+    <div class="cal-col-body">${renderCalColumnCollapsed(raids)}</div>
     <button class="sm ghost cal-add-btn" data-action="quick-add-raid" data-weekday="${wd}">＋ 新增</button>
   </div>`;
 }
@@ -623,13 +645,14 @@ function renderHzTimeline(raids){
       </div>
       <div class="cal-hz-lanes" style="height:${lanesH}px;">
         ${hourTicks.map(h=>`<div class="cal-hz-gridline" style="left:${offsetPct(h)}%;"></div>`).join('')}
-        ${items.map(it=>{
+        ${items.map((it,idx)=>{
           // 寬度直接照實際時長換算百分比即可；最小可讀寬度交給 CSS min-width 處理，
           // 這樣時段範圍窄、被撐到 100% 寬時，卡片會跟著等比例變寬，而不是被百分比公式誤放大。
+          // 每個王團依開始時間排序後的順序，輪流套用不同（偏暗、不刺眼）的色調，方便區分彼此。
           const leftPct = ((it.start/60 - startHour)/totalHours) * 100;
           const widthPct = ((it.end-it.start)/60/totalHours) * 100;
           const top = it.lane*HZ_LANE_HEIGHT;
-          return `<div class="cal-hz-card" style="left:${leftPct}%;top:${top}px;width:${widthPct}%;height:${HZ_LANE_HEIGHT}px;">${renderCalRaidCard(it.raid)}</div>`;
+          return `<div class="cal-hz-card" style="left:${leftPct}%;top:${top}px;width:${widthPct}%;height:${HZ_LANE_HEIGHT}px;">${renderCalRaidCard(it.raid, idx)}</div>`;
         }).join('')}
       </div>
     </div>
