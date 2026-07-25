@@ -129,12 +129,42 @@
 
   /* calendar */
   .cal-scroll{overflow-x:auto;padding-bottom:6px;margin:0 -16px;padding-left:16px;padding-right:16px;}
-  .calendar-grid{display:grid;grid-template-columns:repeat(7, minmax(160px,1fr));gap:10px;min-width:1100px;}
-  .cal-col{display:flex;flex-direction:column;background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:10px;min-height:140px;}
-  .cal-col-head{font-size:13px;font-weight:600;color:var(--accent-soft);text-align:center;padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid var(--border);}
-  .cal-col-body{flex:1;display:flex;flex-direction:column;gap:8px;}
+  .calendar-grid{display:flex;gap:10px;align-items:flex-start;}
+  .cal-col{display:flex;flex-direction:column;flex:1 1 160px;min-width:160px;background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:10px;min-height:140px;}
+  .cal-col.is-collapsed{flex:0 0 130px;min-width:130px;padding:10px 6px;}
+  .cal-col-head{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--accent-soft);padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid var(--border);}
+  .cal-col-head-label{flex:1;text-align:center;}
+  .cal-expand-btn{flex-shrink:0;background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;width:22px;height:22px;padding:0;font-size:12px;line-height:1;display:inline-flex;align-items:center;justify-content:center;}
+  .cal-expand-btn:hover{border-color:var(--accent-dim);color:var(--accent-soft);}
+  .cal-expand-btn.active{border-color:var(--accent);color:var(--accent-soft);background:rgba(201,163,92,.12);}
+  .cal-col-body{flex:1;display:flex;flex-direction:column;gap:8px;max-height:560px;overflow-y:auto;overflow-x:hidden;padding-right:2px;}
   .cal-empty{color:var(--text-faint);font-size:11.5px;text-align:center;padding:16px 4px;}
   .cal-add-btn{margin-top:8px;width:100%;}
+
+  /* calendar：非展開日縮小時的精簡清單 */
+  .cal-mini-item{display:flex;flex-direction:column;gap:1px;padding:6px 3px;border-bottom:1px dashed var(--border);cursor:pointer;}
+  .cal-mini-item:last-child{border-bottom:none;}
+  .cal-mini-item:hover{background:var(--bg-elev-2);}
+  .cal-mini-time{font-family:var(--mono);color:var(--accent-soft);font-size:10.5px;}
+  .cal-mini-title{color:var(--text-dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cal-empty-mini{color:var(--text-faint);font-size:10.5px;text-align:center;padding:10px 2px;}
+
+  /* calendar：單日展開後的橫向時間軸（時間水平排列，同一時間多團會往下並排） */
+  .cal-expanded-panel .panel-title{margin-bottom:12px;}
+  .cal-hz-wrap{overflow:auto;max-height:600px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elev-2);}
+  .cal-hz-inner{position:relative;}
+  .cal-hz-ruler{position:sticky;top:0;height:28px;background:var(--bg-elev-2);border-bottom:1px solid var(--border);z-index:2;}
+  .cal-hz-tick{position:absolute;top:0;height:100%;border-left:1px solid var(--border);padding-left:5px;font-size:10.5px;color:var(--text-faint);font-family:var(--mono);display:flex;align-items:center;white-space:nowrap;}
+  .cal-hz-lanes{position:relative;}
+  .cal-hz-gridline{position:absolute;top:0;bottom:0;width:1px;background:var(--border);opacity:.45;}
+  .cal-hz-card{position:absolute;padding:5px;box-sizing:border-box;min-width:240px;}
+  .cal-hz-card .cal-raid-card{height:100%;overflow-y:auto;box-sizing:border-box;}
+  .cal-hz-empty{color:var(--text-faint);font-size:12.5px;text-align:center;padding:50px 16px;}
+
+  /* calendar：展開時，其他天縮到下方的一排 */
+  .cal-other-days{overflow-x:auto;margin-top:14px;padding-bottom:4px;}
+  .cal-other-days-label{font-size:11.5px;color:var(--text-faint);margin:0 0 8px;}
+  .cal-other-days-track{display:flex;gap:10px;}
 
   .cal-raid-card{border:1px solid var(--border);border-radius:8px;padding:8px 9px;background:var(--bg-elev-2);font-size:12.5px;transition:border-color .15s, background .15s;}
   .cal-raid-card.has-conflict{border-color:var(--accent-dim);}
@@ -188,11 +218,15 @@ let ui = {
   raidForm: null,
   poolSearch: '',
   confirm: null,
+  expandedDay: null,      // 目前水平展開檢視中的星期（0-6），null 表示都沒展開
 };
 
 // ---------- version history ----------
 // 每次有實質更新時，在陣列最前面新增一筆（最新的排最前面）
 const VERSION_HISTORY = [
+  { version: '1.2.0', date: '2026-07-25', notes: [
+    '新增「展開」按鈕：展開某一天後，以時間軸的方式顯示'
+  ] },
   { version: '1.1.0', date: '2026-07-25', notes: ['修復搜尋框在輸入中文（注音／拼音等輸入法）時被強制中斷，導致無法打字的問題'] },
   { version: '1.0.0', date: '2026-07-25', notes: ['初始版本：成員名單、王團紀錄、行事曆檢視、排班衝突偵測'] },
 ];
@@ -508,19 +542,116 @@ function renderCalRaidCard(r){
     <div class="cal-lineup">${lineupHtml}</div>
   </div>`;
 }
-function renderCalendarColumn(wd){
-  const raids = state.raids.filter(r=> raidWeekday(r)===wd)
+function raidsOfWeekdaySorted(wd){
+  return state.raids.filter(r=> raidWeekday(r)===wd)
     .sort((a,b)=> (toMinutes(a.startTime)||0) - (toMinutes(b.startTime)||0));
+}
+// 其他天縮小時的精簡清單：只留時間＋標題，點擊可直接開編輯視窗
+function renderCalColumnCollapsed(raids){
+  if(raids.length===0) return `<div class="cal-empty-mini">—</div>`;
+  return raids.map(r=>`
+    <div class="cal-mini-item" data-action="edit-raid" data-id="${r.id}" title="${esc(r.title||'王團')} ${esc(fmtTimeRange(r.startTime,r.endTime))}">
+      <span class="cal-mini-time">${esc(r.startTime||'')}</span>
+      <span class="cal-mini-title">${esc(r.title||'王團')}</span>
+    </div>`).join('');
+}
+// 一般（未展開）狀態下的單日欄位
+function renderCalColumnFull(wd){
+  const raids = raidsOfWeekdaySorted(wd);
   return `
   <div class="cal-col">
-    <div class="cal-col-head">週${WEEKDAYS[wd]}</div>
-    <div class="cal-col-body">
-      ${raids.length===0 ? `<div class="cal-empty">尚無安排</div>` : raids.map(r=>renderCalRaidCard(r)).join('')}
+    <div class="cal-col-head">
+      <span class="cal-col-head-label">週${WEEKDAYS[wd]}</span>
+      <button class="cal-expand-btn" data-action="toggle-expand-day" data-weekday="${wd}" title="展開">⤢</button>
     </div>
+    <div class="cal-col-body">${raids.length===0 ? `<div class="cal-empty">尚無安排</div>` : raids.map(r=>renderCalRaidCard(r)).join('')}</div>
     <button class="sm ghost cal-add-btn" data-action="quick-add-raid" data-weekday="${wd}">＋ 新增</button>
   </div>`;
 }
+// 展開狀態下，其他天縮小成一排的精簡欄位
+function renderCalColumnMini(wd){
+  const raids = raidsOfWeekdaySorted(wd);
+  return `
+  <div class="cal-col is-collapsed">
+    <div class="cal-col-head">
+      <span class="cal-col-head-label">週${WEEKDAYS[wd]}</span>
+      <button class="cal-expand-btn" data-action="toggle-expand-day" data-weekday="${wd}" title="展開">⤢</button>
+    </div>
+    <div class="cal-col-body">${renderCalColumnCollapsed(raids)}</div>
+  </div>`;
+}
+// 排版單日內互相重疊（同一時間有多團）的王團到不同「軌道」，避免橫向時間軸上互相蓋住
+const HZ_PX_PER_HOUR = 84;
+const HZ_MIN_CARD_WIDTH = 240;
+const HZ_LANE_HEIGHT = 196;
+function layoutHzTimeline(raids){
+  const minWidthMinutes = (HZ_MIN_CARD_WIDTH / HZ_PX_PER_HOUR) * 60;
+  const gapMinutes = (14 / HZ_PX_PER_HOUR) * 60;
+  const items = raids.map(r=>{ const [s,e]=raidRange(r); return { raid:r, start:s, end:e, lane:0 }; })
+    .sort((a,b)=> a.start-b.start || a.end-b.end);
+  const laneOccupiedUntil = [];
+  items.forEach(it=>{
+    const visualEnd = it.start + Math.max(it.end - it.start, minWidthMinutes) + gapMinutes;
+    let lane = laneOccupiedUntil.findIndex(endT=> it.start >= endT);
+    if(lane===-1){ lane = laneOccupiedUntil.length; laneOccupiedUntil.push(visualEnd); }
+    else laneOccupiedUntil[lane] = visualEnd;
+    it.lane = lane;
+  });
+  return { items, laneCount: Math.max(laneOccupiedUntil.length, 1) };
+}
+// 單日展開後的橫向時間軸：時間範圍依當天實際王團時間動態決定（例如只有 8~10 點的團，就只顯示 8~10 點這段），
+// 同一時間如有多團會往下堆疊並排顯示，不呈現日期。
+// 寬度用「百分比」定位、容器寬度用 CSS max(100%, 最小需要的像素寬) 決定：
+// 時段範圍小的時候會直接撐滿面板 100% 寬（不會擠成一小塊），時段範圍大的時候才會出現橫向捲軸。
+function renderHzTimeline(raids){
+  if(raids.length===0) return `<div class="cal-hz-empty">尚無安排</div>`;
+  const { items, laneCount } = layoutHzTimeline(raids);
+  const minStart = Math.min(...items.map(it=>it.start));
+  const maxEnd = Math.max(...items.map(it=>it.end));
+  const startHour = Math.max(0, Math.floor(minStart/60));
+  const endHour = Math.min(24, Math.max(startHour+1, Math.ceil(maxEnd/60)));
+  const totalHours = endHour - startHour;
+  const minPxNeeded = totalHours * HZ_PX_PER_HOUR + 50;
+  const lanesH = laneCount * HZ_LANE_HEIGHT;
+  const hourTicks = Array.from({length: totalHours+1}, (_,i)=> startHour+i);
+  const offsetPct = h=> ((h-startHour)/totalHours) * 100;
+  return `
+  <div class="cal-hz-wrap">
+    <div class="cal-hz-inner" style="width:max(100%, ${minPxNeeded}px);">
+      <div class="cal-hz-ruler">
+        ${hourTicks.map(h=>`<div class="cal-hz-tick" style="left:${offsetPct(h)}%;">${String(h).padStart(2,'0')}:00</div>`).join('')}
+      </div>
+      <div class="cal-hz-lanes" style="height:${lanesH}px;">
+        ${hourTicks.map(h=>`<div class="cal-hz-gridline" style="left:${offsetPct(h)}%;"></div>`).join('')}
+        ${items.map(it=>{
+          // 寬度直接照實際時長換算百分比即可；最小可讀寬度交給 CSS min-width 處理，
+          // 這樣時段範圍窄、被撐到 100% 寬時，卡片會跟著等比例變寬，而不是被百分比公式誤放大。
+          const leftPct = ((it.start/60 - startHour)/totalHours) * 100;
+          const widthPct = ((it.end-it.start)/60/totalHours) * 100;
+          const top = it.lane*HZ_LANE_HEIGHT;
+          return `<div class="cal-hz-card" style="left:${leftPct}%;top:${top}px;width:${widthPct}%;height:${HZ_LANE_HEIGHT}px;">${renderCalRaidCard(it.raid)}</div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+}
 function renderRaids(){
+  const wd = ui.expandedDay;
+  const calendarHtml = wd==null
+    ? `<div class="cal-scroll"><div class="calendar-grid">${CAL_ORDER.map(w=>renderCalColumnFull(w)).join('')}</div></div>`
+    : `
+      <div class="panel cal-expanded-panel">
+        <div class="panel-title">
+          <span>週${WEEKDAYS[wd]}・時間軸檢視（依開始時間水平排列，不顯示日期；同一時間如有多團會往下並排）</span>
+          <button class="sm ghost" data-action="toggle-expand-day" data-weekday="${wd}" title="收合">收合 ⤡</button>
+        </div>
+        ${renderHzTimeline(raidsOfWeekdaySorted(wd))}
+        <button class="sm ghost cal-add-btn" data-action="quick-add-raid" data-weekday="${wd}">＋ 在週${WEEKDAYS[wd]}新增</button>
+      </div>
+      <div class="cal-other-days">
+        <div class="cal-other-days-label">其他天（點 ⤢ 可切換展開）</div>
+        <div class="cal-other-days-track">${CAL_ORDER.filter(w=>w!==wd).map(w=>renderCalColumnMini(w)).join('')}</div>
+      </div>`;
   return `
   <div class="toolbar">
     <div class="spacer"></div>
@@ -531,9 +662,7 @@ function renderRaids(){
     <input type="search" class="pool-search" placeholder="搜尋遊戲ID或名字…" value="${esc(ui.calPoolSearch)}" data-action="cal-pool-search">
     <div class="cal-pool-list" data-action="cal-pool-list">${renderCalMemberPool()}</div>
   </div>
-  <div class="cal-scroll">
-    <div class="calendar-grid">${CAL_ORDER.map(wd=>renderCalendarColumn(wd)).join('')}</div>
-  </div>`;
+  ${calendarHtml}`;
 }
 
 // ---------- modal dispatch ----------
@@ -683,6 +812,8 @@ function bindGlobalEvents(){
     if(a==='delete-member') el.addEventListener('click', ()=> confirmDeleteMember(el.dataset.id));
     if(a==='save-member') el.addEventListener('click', saveMemberFromModal);
 
+    if(a==='toggle-expand-day') el.addEventListener('click', ()=> toggleExpandDay(Number(el.dataset.weekday)));
+
     if(a==='open-raid-modal') el.addEventListener('click', ()=> openRaidModal(null));
     if(a==='quick-add-raid') el.addEventListener('click', ()=> openRaidModal(null, Number(el.dataset.weekday)));
     if(a==='edit-raid') el.addEventListener('click', ()=> openRaidModal(el.dataset.id));
@@ -830,6 +961,10 @@ function confirmDeleteMember(id){
 }
 
 // ---------- raid actions ----------
+function toggleExpandDay(wd){
+  ui.expandedDay = (ui.expandedDay===wd) ? null : wd;
+  renderTabOnly();
+}
 function openRaidModal(id, presetWeekday){
   ui.modal='raid'; ui.editingRaidId=id; ui.poolSearch='';
   if(id){
