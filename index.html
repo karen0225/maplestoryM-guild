@@ -231,6 +231,9 @@ let ui = {
 // ---------- version history ----------
 // 每次有實質更新時，在陣列最前面新增一筆（最新的排最前面）
 const VERSION_HISTORY = [
+  { version: '1.4.0', date: '2026-07-27', notes: [
+    '編輯王團紀錄視窗與展開王團卡片新增「複製名單」按鈕，可一鍵複製王團名稱、星期、時間與出場名單',
+  ] },
   { version: '1.3.0', date: '2026-07-25', notes: [
     '簡潔UI顯示，展開後每個王團以不同顏色區分',
   ] },
@@ -552,6 +555,7 @@ function renderCalRaidCard(r, toneIdx){
         <div class="cal-raid-meta">${fmtTimeRange(r.startTime,r.endTime)}${dateNote?(' · '+dateNote):''} · ${r.slots.length}/10</div>
       </div>
       <div class="row-actions">
+        <button class="xs" data-action="copy-raid" data-id="${r.id}" title="複製王團名稱、時間與出場名單">📋</button>
         <button class="xs" data-action="edit-raid" data-id="${r.id}" title="編輯">✎</button>
         <button class="xs danger" data-action="delete-raid" data-id="${r.id}" title="刪除">×</button>
       </div>
@@ -746,7 +750,10 @@ function renderRaidModal(){
   return `
   <div class="modal-overlay" data-action="overlay-close">
     <div class="modal-box wide" data-stop>
-      <h3>${ui.editingRaidId?'編輯王團紀錄':'新增王團紀錄'}</h3>
+      <h3 style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <span>${ui.editingRaidId?'編輯王團紀錄':'新增王團紀錄'}</span>
+        ${ui.editingRaidId ? `<button class="sm ghost" data-action="copy-raid" data-id="${ui.editingRaidId}" title="複製王團名稱、時間與出場名單">📋 複製名單</button>` : ''}
+      </h3>
 
       <div class="field">
         <label>日期 *</label>
@@ -842,6 +849,7 @@ function bindGlobalEvents(){
     if(a==='edit-raid') el.addEventListener('click', ()=> openRaidModal(el.dataset.id));
     if(a==='delete-raid') el.addEventListener('click', ()=> confirmDeleteRaid(el.dataset.id));
     if(a==='save-raid') el.addEventListener('click', saveRaidFromModal);
+    if(a==='copy-raid') el.addEventListener('click', e=>{ e.stopPropagation(); copyRaidInfo(el.dataset.id, el); });
 
     if(a==='r-datemode') el.addEventListener('change', e=>{ ui.raidForm.dateMode=e.target.value; renderModalOnly(); });
     if(a==='r-weekday') el.addEventListener('change', e=>{ ui.raidForm.weekday = e.target.value===''? null : Number(e.target.value); renderModalOnly(); });
@@ -1039,6 +1047,49 @@ function saveRaidFromModal(){
   if(ui.editingRaidId){ const r=state.raids.find(x=>x.id===ui.editingRaidId); Object.assign(r,payload); }
   else state.raids.push({ id:uid(), ...payload });
   saveData(); closeModal();
+}
+// 複製王團名稱、時間與出場名單到剪貼簿，格式：
+// 王團名 週X 時間
+// 1.遊戲ID-名字
+// 2.遊戲ID-名字
+function buildRaidCopyText(r){
+  const wd = raidWeekday(r);
+  const wdLabel = wd!=null ? '週'+WEEKDAYS[wd] : '';
+  const timeLabel = fmtTimeRange(r.startTime, r.endTime);
+  const header = [r.title||'王團', wdLabel, timeLabel].filter(Boolean).join(' ');
+  const lines = r.slots.map((s,i)=>{
+    if(s.type==='member'){
+      const m = memberById(s.refId);
+      const gameId = m ? m.gameId : '（已刪除的成員）';
+      const name = m && m.name ? m.name : '';
+      return `${i+1}.${gameId}${name?'-'+name:''}`;
+    }
+    return `${i+1}.${s.name}`;
+  });
+  return [header, ...lines].join('\n');
+}
+function copyRaidInfo(id, btnEl){
+  const r = state.raids.find(x=>x.id===id);
+  if(!r) return;
+  const text = buildRaidCopyText(r);
+  const showResult = ok=>{
+    if(!btnEl) return;
+    const original = btnEl.textContent;
+    btnEl.textContent = ok ? '已複製 ✓' : '複製失敗';
+    setTimeout(()=>{ btnEl.textContent = original; }, 1200);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>showResult(true)).catch(()=>showResult(false));
+  }else{
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showResult(true);
+    }catch(e){ showResult(false); }
+  }
 }
 function confirmDeleteRaid(id){
   const r = state.raids.find(x=>x.id===id);
